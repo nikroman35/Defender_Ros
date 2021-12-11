@@ -11,11 +11,21 @@ class Simulator:
         super().__init__()
         self.get_config()
 
+    def inc_simulate_interval_counter(self):
+        if (self.simulate_counter < self.simulate_interval):
+            self.simulate_counter = self.simulate_counter + 1
+        else:
+            self.simulate_counter = 0
+
+    def result_simulate_interval_counter(self):
+        return self.simulate_counter < self.simulate_interval
 
     def get_config(self):
         config = configparser.ConfigParser()
         config.read("config.ini")
         self.simulator_mode = int(config['SimulatorConfig']['simulator_mode'])
+        self.simulate_interval = int(config['SimulatorArrayTypeConfig']['simulate_interval'])
+        self.simulate_counter = 0
 
         self.pitch_min = int(config['SimulatorDataConfig']['pitch_min'])
         self.pitch_max = int(config['SimulatorDataConfig']['pitch_max'])
@@ -100,7 +110,10 @@ class Simulator:
             targeting_list.append(data.targeting)
             temperature_list.append(data.temperature)
 
-        new_value = ControllerDataClass('0')
+        self.inc_simulate_interval_counter()
+
+        new_value = ControllerDataClass(0)
+
         new_value.pitch = self.new_value(pitch_list, False, "pitch")
         new_value.roll = self.new_value(roll_list, False, "roll")
         new_value.course = self.new_value(course_list, False, "course")
@@ -169,15 +182,6 @@ class Simulator:
         elif id == "temperature":
             return self.simulate_mode_func(list, self.temperature_min, self.temperature_max, is_int)
 
-        # if is_int:
-        #     random_value = random.randint(0, 100)
-        #     avg = int(avg) + random_value
-        #     print("RANDOM", random_value)
-        # else:
-        #     random_value = random.randint(0, 100)
-        #     avg = avg + random_value
-        #     print("RANDOM", random_value)
-
         print("REAL", list[0])
         return avg
 
@@ -190,6 +194,12 @@ class Simulator:
                 new_value = random.randint(bottom, top)
             else:
                 new_value = random.uniform(bottom, top)
+        if self.simulator_mode == 2:
+            if not self.result_simulate_interval_counter():
+                new_value = self.average(current)
+            else:
+                new_value = current.pop()
+
         return new_value
 
 
