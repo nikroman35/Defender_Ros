@@ -9,6 +9,7 @@ class Simulator:
 
     def __init__(self):
         super().__init__()
+        self.repeat_value = None
         self.get_config()
 
     def inc_simulate_interval_counter(self):
@@ -136,6 +137,11 @@ class Simulator:
 
         print("NEW VALUE TEM", new_value.temperature)
 
+        if self.simulator_mode == 3:
+            if self.repeat_value is not None:
+                return self.repeat_value
+            else:
+                self.repeat_value = new_value
         return new_value
 
     def average(self, lst):

@@ -72,7 +72,6 @@ class SimulatorAntiSpoofingPublisher(Node):
         else:
             msg.module_state = self.on_state
 
-        # print("SEND CALLBACK", msg)
         self.publisher_.publish(msg)
 
 class SimulatorCallbackPublisher(Node):
@@ -85,7 +84,6 @@ class SimulatorCallbackPublisher(Node):
         msg.check_result = data.check_result
         msg.error_code = data.error_code
         msg.error_description = data.error_description
-        #print("SEND CALLBACK", msg)
         self.publisher_.publish(msg)
 
 class SpoofingControlSubscriber(Node):
@@ -115,7 +113,8 @@ class DataSubscriber(Node):
 
     def __init__(self, topic_name, control_state, q):
         super().__init__("data_node")
-        threading.Thread(target=self.queue_loop_reader, args=(q, True, ), daemon=True).start()
+        self.database_conn = DatabaseWorker.create_connection()
+        self.database_anal_conn = DatabaseWorker.create_anal_connection()
         self.data_buffer = self.get_simulate_data_size()
         self.simulator = Simulator()
         callback_lambda = lambda x: self.listener_callback(x, control_state, q)
@@ -175,8 +174,9 @@ class DataSubscriber(Node):
                       data.targeting,
                       data.temperature))
 
+        threading.Thread(target=self.write_database_var, args=(data, round_value,)).start()
+
         if control_state[0].decode('utf-8') == '1':
-            #print("ATTACK")
             logging.info('catch attack state time = %s', str(timestamp))
             simulate_value = self.simulate()
             logging.info('SIMULATE DATA "%f" '
@@ -219,75 +219,15 @@ class DataSubscriber(Node):
                           simulate_value.utc_time,
                           simulate_value.targeting,
                           simulate_value.temperature))
-            threading.Thread(target=self.add_data_in_queue, args=(q, simulate_value, round_value, 1,)).start()
+            threading.Thread(target=self.write_simulate_var, args=(simulate_value, round_value,)).start()
         else:
-            threading.Thread(target=self.add_data_in_queue, args=(q, data, round_value, 0,)).start()
+            threading.Thread(target=self.write_simulate_var, args=(data, round_value,)).start()
 
-        # self.get_logger().info('Subscribe data: status "%a" '
-        #                        ' pitch "%f" '
-        #                        ' roll "%f" '
-        #                        ' course "%f" '
-        #                        ' w_x "%f"'
-        #                        ' w_y "%f"'
-        #                        ' w_z "%f"'
-        #                        ' a_x "%f"'
-        #                        ' a_y "%f"'
-        #                        ' a_z "%f"'
-        #                        ' gps_speed "%f"'
-        #                        ' gps_track_angle "%f"'
-        #                        ' gps_satellite_number "%f"'
-        #                        ' altitude "%f"'
-        #                        ' latitude "%f"'
-        #                        ' longitude "%f"'
-        #                        ' gps_utc_date "%f"'
-        #                        ' utc_time "%f"'
-        #                        ' targeting "%i"'
-        #                        ' temperature "%i"'%
-        #                        (msg.status,
-        #                         msg.pitch,
-        #                         msg.roll,
-        #                         msg.course,
-        #                         msg.w_x,
-        #                         msg.w_y,
-        #                         msg.w_z,
-        #                         msg.a_x,
-        #                         msg.a_y,
-        #                         msg.a_z,
-        #                         msg.gps_speed,
-        #                         msg.gps_track_angle,
-        #                         msg.gps_satellite_number,
-        #                         msg.altitude,
-        #                         msg.latitude,
-        #                         msg.longitude,
-        #                         msg.gps_utc_date,
-        #                         msg.utc_time,
-        #                         msg.targeting,
-        #                         msg.temperature))
+    def write_database_var(self, data, _time):
+        DatabaseWorker.write_data(self.database_conn, data, _time)
 
-    def add_data_in_queue(self, q, data, _time, beFake):
-        #print("ADD TO QUEUE")
-        _type = "write"
-        q.appendleft([_type, data, _time, beFake])
-
-    def choose_database_action(self, q, conn):
-        global sending_data
-        data = q.pop()
-        if data[0] == "write":
-            print("write")
-            DatabaseWorker.write_data(conn, data[1], data[2], data[3])
-        elif data[0] == "update":
-            print("update")
-            _time = DatabaseWorker.write_send_mark(conn, data[1], data[2])
-            print("SENDING DATA BEFORE REMOVE", sending_data)
-            sending_data.remove(_time)
-
-    def queue_loop_reader(self, q, loop_value):
-        conn = DatabaseWorker().create_connection()
-        while loop_value:
-            if len(q) == 0:
-                pass
-            else:
-                self.choose_database_action(q, conn)
+    def write_simulate_var(self, data, _time):
+        DatabaseWorker.write_data(self.database_anal_conn, data, _time)
 
     def simulate(self):
         logging.info('simulate data')
@@ -336,109 +276,12 @@ class DataSubscriber(Node):
         return d
 
 
-unsent_data = []
-sending_data = []
 simulator_publisher: SimulatorCallbackPublisher
 antispoofing_publisher: SimulatorAntiSpoofingPublisher
 data_subscriber: DataSubscriber
-q: deque
-
-
-def get_update_unsent_data_time():
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-    unsent_data_time = int(config['SimulatorConfig']['unsent_data_update_time'])
-    return unsent_data_time
-
-
-def loop_read_database():
-    global unsent_data
-    global sending_data
-    name = "AnalyzerClientAsync"
-    client = AnalyzerClientAsync(name)
-    while True:
-        if len(unsent_data) == 0:
-            conn = DatabaseWorker().create_connection()
-            data = DatabaseWorker.read_unsent_data(conn)
-            #print(data, 'DATA')
-            if (data != None) :
-                if (len(data) != 0):
-                    unsent_data = correct_unsent_data(data)
-                    send_data_to_analyzer(client)
-                else:
-                    print("EMPTY ARRAY DATA")
-        else:
-            print("NOT EMPTY")
-        loop_time = get_update_unsent_data_time()
-        time.sleep(loop_time)
-
-def add_in_sending_data(data):
-    global sending_data
-    sending_data.append(data)
-    print("SENDING DATA", sending_data)
-
-def correct_unsent_data(data):
-    global sending_data
-    copy_data = data.copy()
-
-    for i in data:
-        if i[0] in sending_data:
-            copy_data.remove(i)
-
-    for data in copy_data:
-        print(data[0], "COPY DATA ELEMENT \n")
-    print("COPY DATA FULL_____", copy_data)
-
-    return copy_data
-
-
-def add_data_in_queue2(_time, status):
-    global q
-    _type = "update"
-    q.append([_type, _time, status])
-
-def self_spin(client, data):
-    global simulator_publisher
-    global antispoofing_publisher
-    global data_subscriber
-    global unsent_data
-    global sending_data
-    print("SELF SPIN \n")
-    while rclpy.ok():
-        rclpy.spin_once(client)
-        if client.future.done():
-            result = client.future.result() #SENT TO GUI
-            unsent_data.remove(data)
-            #print(result, "RESULT")
-            print("REMOVE FROM UNSENT DATA \n")
-            logging.info('send data to callback publisher')
-            #DatabaseWorker.write_send_mark(conn, data[0], 1)
-            simulator_publisher.callback(result)
-            antispoofing_publisher.callback(result.check_result, bool(data[21]))
-            #client.destroy_node()
-            break
-
-
-def group_call(data, client):
-    print("SEND DATA TO SERVER", data)
-    client.send_request(data)
-    add_in_sending_data(data[0])
-    add_data_in_queue2(data[0], 1)
-    self_spin(client, data)
-
-def send_data_to_analyzer(client):
-    global unsent_data
-    copy_data = unsent_data.copy()
-    for data in copy_data:
-        group_call(data, client) #ALARM
-        #unsent_data.remove(data)
-    #print("End Loop")
-
 
 def main(args=None):
     rclpy.init(args=args)
-
-    global q
 
     Loger.set_type("sim")
     q = deque()
@@ -448,7 +291,6 @@ def main(args=None):
     database_thread.start()
 
     spoof_control_state = [bytes('0', 'utf-8')]
-    #print('MAIN "%a"' % (id(spoof_control_state)))
 
     global simulator_publisher
     global antispoofing_publisher
@@ -467,7 +309,7 @@ def main(args=None):
 
     executor_thread = threading.Thread(target=executor.spin, daemon=True)
     executor_thread.start()
-    rate = data_subscriber.create_rate(1) # Потыкать
+    rate = data_subscriber.create_rate(1)
 
     try:
         while rclpy.ok():

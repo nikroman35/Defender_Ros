@@ -19,13 +19,23 @@ class DatabaseWorker:
         return conn
 
     @staticmethod
-    def write_data(connect, data: ControllerDataClass, time, beFake):
+    def create_anal_connection():
+        Loger.set_type("db")
+        conn = None
+        try:
+            conn = sqlite3.connect('data_database_anal', check_same_thread=False)
+        except Error as e:
+            logging.error("Cant connect database", e)
+
+        return conn
+
+    @staticmethod
+    def write_data(connect, data: ControllerDataClass, time):
 
         Loger.set_type("db")
 
         try:
             cursor = connect.cursor()
-            is_sent = 0
             task = (time,
                     data.status,
                     data.pitch,
@@ -46,12 +56,10 @@ class DatabaseWorker:
                     data.gps_utc_date,
                     data.utc_time,
                     data.targeting,
-                    data.temperature,
-                    beFake,
-                    is_sent)
+                    data.temperature)
 
-            sql = ''' INSERT or IGNORE INTO msg_list(msg_time,status,pitch,roll,course,w_x,w_y,w_z,a_x,a_y,a_z,gps_speed,gps_track_angle,gps_satellite_number,altitude,latitude,longitude,gps_utc_date,utc_time,targeting,temperature,beFake,isSent)
-                                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
+            sql = ''' INSERT or IGNORE INTO msg_list(msg_time,status,pitch,roll,course,w_x,w_y,w_z,a_x,a_y,a_z,gps_speed,gps_track_angle,gps_satellite_number,altitude,latitude,longitude,gps_utc_date,utc_time,targeting,temperature)
+                                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
 
             cursor.execute(sql, task)
             connect.commit()
@@ -63,7 +71,6 @@ class DatabaseWorker:
 
         finally:
             if connect:
-                #connect.close()
                 logging.info("The SQLite connection is closed")
 
 
@@ -94,7 +101,7 @@ class DatabaseWorker:
         Loger.set_type("db")
         try:
             cursor = connect.cursor()
-            sql = ''' SELECT * from msg_list where isSent = 0'''
+            sql = ''' SELECT * from msg_list '''
             cursor.execute(sql)
             records = cursor.fetchall()
 
