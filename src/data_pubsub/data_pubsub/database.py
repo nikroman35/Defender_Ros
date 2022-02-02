@@ -61,18 +61,18 @@ class DatabaseWorker:
             sql = ''' INSERT or IGNORE INTO msg_list(msg_time,status,pitch,roll,course,w_x,w_y,w_z,a_x,a_y,a_z,gps_speed,gps_track_angle,gps_satellite_number,altitude,latitude,longitude,gps_utc_date,utc_time,targeting,temperature)
                                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
 
+
             cursor.execute(sql, task)
             connect.commit()
             cursor.close()
 
         except sqlite3.Error as error:
-            print("Failed to update sqlite table", error)
-            logging.error("Failed to update sqlite table %s", error)
+            # print("Failed to update1 sqlite table", error)
+            logging.error("Failed to update1 sqlite table %s", error)
 
         finally:
             if connect:
                 logging.info("The SQLite connection is closed")
-
 
     @staticmethod
     def write_send_mark(connect, time, status):
@@ -88,13 +88,12 @@ class DatabaseWorker:
             cursor.close()
 
         except sqlite3.Error as error:
-            print("Failed to update state sqlite table", error)
-            logging.error("Failed to update sqlite table %s", error)
+            print("Failed to update2 state sqlite table", error)
+            logging.error("Failed to update2 sqlite table %s", error)
         finally:
             if connect:
                 #connect.close()
                 return time
-                logging.info("The SQLite connection is closed")
 
     @staticmethod
     def read_unsent_data(connect):

@@ -194,7 +194,10 @@ class Simulator:
     def simulate_mode_func(self, current, bottom, top, is_int):
         new_value = 0
         if self.simulator_mode == 0:
-            new_value = self.average(current)
+            if is_int:
+                new_value = int(self.average(current))
+            else:
+                new_value = self.average(current)
         if self.simulator_mode == 1:
             if is_int:
                 new_value = random.randint(bottom, top)
@@ -202,7 +205,10 @@ class Simulator:
                 new_value = random.uniform(bottom, top)
         if self.simulator_mode == 2:
             if not self.result_simulate_interval_counter():
-                new_value = self.average(current)
+                if is_int:
+                    new_value = int(self.average(current))
+                else:
+                    new_value = self.average(current)
             else:
                 new_value = current.pop()
 

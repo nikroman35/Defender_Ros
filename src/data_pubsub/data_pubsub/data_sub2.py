@@ -40,7 +40,7 @@ class FakeDataPublisher(Node):
         msg.a_z = data.a_z
         msg.gps_speed = data.gps_speed
         msg.gps_track_angle = data.gps_track_angle
-        msg.gps_satellite_number = data.gps_satellite_number
+        msg.gps_satellite_number = int(data.gps_satellite_number)
         msg.altitude = data.altitude
         msg.latitude = data.latitude
         msg.longitude = data.longitude
@@ -285,10 +285,6 @@ def main(args=None):
 
     Loger.set_type("sim")
     q = deque()
-
-    database_thread = threading.Thread(target=loop_read_database, daemon=True)
-    database_thread.setDaemon(True)
-    database_thread.start()
 
     spoof_control_state = [bytes('0', 'utf-8')]
 
